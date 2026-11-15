@@ -1,0 +1,125 @@
+name: devsecops
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      enforce_gates:
+        description: "true = quality gates bloqueantes; false = solo aviso"
+        default: "true"
+
+permissions:
+  contents: read
+  issues: write
+
+env:
+  APP_PORT: 3000
+  ENFORCE: ${{ github.event.inputs.enforce_gates || 'true' }}
+
+jobs:
+  sast-semgrep:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - run: |
+          pip install semgrep
+          mkdir -p reports
+          semgrep scan --config p/javascript --config p/nodejs --config p/owasp-top-ten \
+            --metrics=off --json -o reports/semgrep.json --exclude node_modules --exclude frontend/dist || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: { name: report-semgrep, path: reports/semgrep.json }
+
+  sca-trivy:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          mkdir -p reports
+          docker run --rm -v "$PWD:/src" aquasec/trivy:latest fs --scanners vuln \
+            --format json -o /src/reports/trivy-sca.json /src
+          sudo chown -R "$USER" reports
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: { name: report-trivy-sca, path: reports/trivy-sca.json }
+
+  iac-trivy:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          mkdir -p reports
+          docker run --rm -v "$PWD:/src" aquasec/trivy:latest config \
+            --format json -o /src/reports/trivy-iac.json /src
+          sudo chown -R "$USER" reports
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: { name: report-trivy-iac, path: reports/trivy-iac.json }
+
+  build-and-dast:
+    needs: [sast-semgrep, sca-trivy, iac-trivy]
+    if: always()
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build y arranque de la app (entorno efimero del runner)
+        run: |
+          docker build -t app-under-test .
+          docker run -d --name app -p ${APP_PORT}:3000 app-under-test
+          for i in $(seq 1 40); do curl -sf http://localhost:${APP_PORT}/ >/dev/null && break; sleep 3; done
+      - name: ZAP baseline contra localhost
+        run: |
+          mkdir -p reports && chmod 777 reports
+          docker run --rm --network host -v "$PWD/reports:/zap/wrk:rw" \
+            ghcr.io/zaproxy/zaproxy:stable zap-baseline.py \
+            -t http://localhost:${APP_PORT} -J zap.json -x zap.xml -r zap.html -I
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: { name: report-zap, path: reports/zap.* }
+
+  vuln-management:
+    needs: [sast-semgrep, sca-trivy, iac-trivy, build-and-dast]
+    if: always()
+    runs-on: ubuntu-latest   # DD_URL debe ser accesible (self-hosted runner o tunel)
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with: { path: reports, merge-multiple: true }
+      - name: Subida automatica a DefectDojo (API)
+        env:
+          DD_URL: ${{ secrets.DD_URL }}
+          DD_TOKEN: ${{ secrets.DD_TOKEN }}
+          COMMIT: ${{ github.sha }}
+          BRANCH: ${{ github.ref_name }}
+        run: bash scripts/upload_defectdojo.sh reports
+
+  quality-gate:
+    needs: [vuln-management]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with: { path: reports, merge-multiple: true }
+      - name: Evaluar umbrales (bloqueante si ENFORCE=true)
+        run: python3 scripts/quality_gate.py reports gates.json
+      - name: Avisar al equipo si el gate falla
+        if: failure()
+        env: { GH_TOKEN: "${{ github.token }}" }
+        run: |
+          gh issue create --repo "$GITHUB_REPOSITORY" \
+            --title "Quality gate fallido en ${GITHUB_SHA::7}" \
+            --body "El quality gate bloqueo el pipeline. Ver ejecucion: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" || true
+
+  deploy:
+    needs: [quality-gate]
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "Despliegue simulado: solo se alcanza si el quality gate pasa"
