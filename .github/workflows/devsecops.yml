@@ -119,7 +119,7 @@ jobs:
 
   deploy:
     needs: [quality-gate]
-    if: github.ref == 'refs/heads/master'
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
       - run: echo "Despliegue simulado (solo se alcanza si el quality gate pasa)"
