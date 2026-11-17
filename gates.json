@@ -4,6 +4,6 @@
     {"name": "SCA Trivy - CRITICAL+HIGH", "tool": "trivy-sca", "severity": "critical,high", "max": 0, "mode": "block"},
     {"name": "IaC Trivy - CRITICAL+HIGH", "tool": "trivy-iac", "severity": "critical,high", "max": 0, "mode": "block"},
     {"name": "SAST Semgrep - ERROR",      "tool": "semgrep",   "severity": "high",          "max": 5, "mode": "warn"},
-    {"name": "DAST ZAP - HIGH",           "tool": "zap",       "severity": "high",          "max": 0, "mode": "warn"}
+    {"name": "DAST ZAP - MEDIUM+HIGH", "tool": "zap", "severity": "medium,high", "max": 0, "mode": "warn"}
   ]
 }
