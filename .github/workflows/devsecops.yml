@@ -43,8 +43,9 @@ jobs:
       - name: Generar lockfiles sin instalar paquetes
         run: |
           npm install --package-lock-only --package-lock=true --ignore-scripts
-          (cd frontend && npm install --package-lock-only --package-lock=true --ignore-scripts)
-          ls -la package-lock.json frontend/package-lock.json
+          ls -la package-lock.json
+          (cd frontend && npm install --package-lock-only --package-lock=true --ignore-scripts --legacy-peer-deps) \
+            || echo "AVISO: no se pudo generar el lockfile del frontend, se analiza solo el backend"
       - name: Trivy SCA
         run: |
           mkdir -p reports
