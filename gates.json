@@ -1,9 +1,9 @@
 {
   "_comment": "mode: block = falla el pipeline; warn = solo informa. max = maximo de hallazgos permitidos.",
   "gates": [
-    {"name": "SCA Trivy - CRITICAL",   "tool": "trivy-sca", "severity": "critical", "max": 0,  "mode": "block"},
-    {"name": "IaC Trivy - HIGH",       "tool": "trivy-iac", "severity": "high",     "max": 0,  "mode": "warn"},
-    {"name": "SAST Semgrep - ERROR",   "tool": "semgrep",   "severity": "high",     "max": 5,  "mode": "warn"},
-    {"name": "DAST ZAP - HIGH",        "tool": "zap",       "severity": "high",     "max": 0,  "mode": "warn"}
+    {"name": "SCA Trivy - CRITICAL+HIGH", "tool": "trivy-sca", "severity": "critical,high", "max": 0, "mode": "block"},
+    {"name": "IaC Trivy - CRITICAL+HIGH", "tool": "trivy-iac", "severity": "critical,high", "max": 0, "mode": "block"},
+    {"name": "SAST Semgrep - ERROR",      "tool": "semgrep",   "severity": "high",          "max": 5, "mode": "warn"},
+    {"name": "DAST ZAP - HIGH",           "tool": "zap",       "severity": "high",          "max": 0, "mode": "warn"}
   ]
 }

@@ -50,7 +50,8 @@ for g in json.load(open(cfg))["gates"]:
     if c is None:
         print(f"{g['name']:32} {'sin informe':>11} {g['max']:>4} {g['mode']:>6} AVISO (informe ausente)")
         continue
-    n = c.get(g["severity"], 0)
+    sev = [s.strip() for s in g["severity"].split(",")]
+    n = sum(c.get(s, 0) for s in sev)
     exceeded = n > g["max"]
     blocking = exceeded and g["mode"] == "block" and enforce
     res = "FALLA (bloquea)" if blocking else ("SUPERA (aviso)" if exceeded else "OK")

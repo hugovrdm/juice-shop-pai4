@@ -38,7 +38,15 @@ jobs:
     continue-on-error: true
     steps:
       - uses: actions/checkout@v4
-      - run: |
+      - uses: actions/setup-node@v4
+        with: { node-version: "22" }
+      - name: Generar lockfiles sin instalar paquetes
+        run: |
+          npm install --package-lock-only --package-lock=true --ignore-scripts
+          (cd frontend && npm install --package-lock-only --package-lock=true --ignore-scripts)
+          ls -la package-lock.json frontend/package-lock.json
+      - name: Trivy SCA
+        run: |
           mkdir -p reports
           docker run --rm -v "$PWD:/src" aquasec/trivy:latest fs --scanners vuln \
             --format json -o /src/reports/trivy-sca.json /src
